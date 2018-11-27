@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<meta charset="UTF-8">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular.min.js"></script>
+<script src="http://peterolson.github.com/BigInteger.js/BigInteger.min.js"></script>
+<style>
+ul li button {
+    width:20%;
+}
+</style>
+<body>
+	<script>
+	angular.module('meApp', []).controller('myCtrl', ['$scope', '$interval', function ($scope, $interval) {
+		$scope.money = 0;
+		$scope.plus = 1;
+		$scope.BuildingsList = {
+			Pharmacies: [
+				{name: 'Agafarma',			amount: 0, earns: Math.pow(10, 0), price: Math.pow(100, 1)},
+				{name: 'Capilé',			amount: 0, earns: Math.pow(10, 1), price: Math.pow(100, 2)},
+				{name: 'Droga Raia',		amount: 0, earns: Math.pow(10, 2), price: Math.pow(100, 3)},
+				{name: 'Leopoldense',		amount: 0, earns: Math.pow(10, 3), price: Math.pow(100, 4)},
+				{name: 'Mais Econômica',	amount: 0, earns: Math.pow(10, 4), price: Math.pow(100, 5)},
+				{name: 'Maxxi Econômica',	amount: 0, earns: Math.pow(10, 5), price: Math.pow(100, 6)},
+				{name: 'Panvel',			amount: 0, earns: Math.pow(10, 6), price: Math.pow(100, 7)},
+				{name: 'São João',			amount: 0, earns: Math.pow(10, 7), price: Math.pow(100, 8)},
+			]
+		};
+		
+		$scope.getMoney = function(idx){
+			$scope.money += $scope.plus;
+		}
+		
+		$scope.buyBuilding = function(idx){
+			$scope.money -= $scope.BuildingsList.Pharmacies[idx].price;
+			$scope.BuildingsList.Pharmacies[idx].price *= 1.25;
+			$scope.BuildingsList.Pharmacies[idx].amount++;
+		}
+		
+		$interval(function () {
+			for(var i=0;i<$scope.BuildingsList.Pharmacies.length;i++) {
+				$scope.money += $scope.BuildingsList.Pharmacies[i].amount * $scope.BuildingsList.Pharmacies[i].earns;
+			}
+		}, 1000);
+		
+		$("#get").keypress(function(e) {
+			if (e.keyCode === 13 || e.which === 32 || e.which === ' ') ;//e.preventDefault();
+		});
+	}]);
+	</script>
+
+	<div ng-app="meApp">
+		<div ng-controller="myCtrl">
+			<ul style="list-style-type:none;">
+				<li><button ng-disabled="true">{{money}}</button></li>
+			</ul>
+			<ul style="list-style-type:none;">
+				<li><button ng-click="getMoney($index)" id="get">{{plus}}</button></li>
+			</ul>
+			<ul ng-repeat="pharmacy in BuildingsList.Pharmacies" style="list-style-type:none;">
+				<li><button ng-click="buyBuilding($index)" ng-disabled="pharmacy.price >= money">{{pharmacy.amount+" "+pharmacy.name+" "+pharmacy.price}}</button></li>
+			</ul>
+		</div>
+	</div>
+</body>
+</html>

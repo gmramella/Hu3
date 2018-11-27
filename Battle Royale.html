@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<meta charset="UTF-8">
+<body>
+<svg id="svg" width="800" height="600">
+	<text id="sh" x="0" y="16" fill="blue"></text>
+	<rect id="outerShield" x="110" y="6" width="150" height="8" fill="transparent" stroke="blue" stroke-width="1"/>
+	<rect id="innerShield" x="110" y="6" width="150" height="8" fill="blue" stroke="blue" stroke-width="1"/>
+	<text id="hp" x="0" y="31" fill="green"></text>
+	<rect id="outerHealth" x="110" y="21" width="150" height="8" fill="transparent" stroke="green" stroke-width="1"/>
+	<rect id="innerHealth" x="110" y="21" width="150" height="8" fill="green" stroke="green" stroke-width="1"/>
+	<text id="timerLabel" x="0" y="46" fill="red"></text>
+	<text id="timer" x="110" y="46" fill="red"></text>
+	<circle id="player" stroke="red" fill="transparent" stroke-width="3"/>
+	<circle id="innerCenter" stroke="black" fill="transparent" stroke-width="3"/>
+	<circle id="outerCenter" stroke="black" fill="transparent" stroke-width="3"/>
+	<circle id="innerCircle" stroke="black" fill="transparent" stroke-width="3"/>
+	<circle id="outerCircle" stroke="black" fill="transparent" stroke-width="3"/>
+	<line id="line" stroke="blue" stroke-width="3"/>
+	<line id="intersection" stroke="black" stroke-width="3"/>
+	<line id="vision" stroke="green" stroke-width="3"/>
+	<line id="bullet" stroke="red" stroke-width="3"/>
+</svg>
+<script>
+	{//functions
+	function random(f) {return -f + 2 * f * Math.random();}
+	function distance(u, v) {return Math.sqrt((u.x - v.x) * (u.x - v.x) + (u.y - v.y) * (u.y - v.y));}
+	function length(v) {return Math.sqrt((v.x * v.x) + (v.y * v.y));}
+	function normalize(v) {var len = length(v);if (len != 0) {v.x /= len;v.y /= len;}}
+	function dot(u, v) {return (u.x * v.x) + (u.y * v.y);}
+	function cross(u, v) {return {x: (u.y * v.z - u.z * v.y), y: (u.z * v.x - u.x * v.z), z: (u.x * v.y - u.y * v.x)};}
+	function cross(u) {return {x: u.y, y: -u.x};}
+	function clamp(min, max, n) {return Math.min(Math.max(n, min), max);}
+	function sub(u, v) {return {x: (u.x - v.x), y: (u.y - v.y)};}
+	function intersects(linePos, lineDir, ellipsePos, circleRad) {
+		var A = (((lineDir.x * lineDir.x) / (circleRad * circleRad)) + ((lineDir.y * lineDir.y) / (circleRad * circleRad)));
+		var B = 2 * (((linePos.x * lineDir.x - ellipsePos.x * lineDir.x)/(circleRad * circleRad)) + ((linePos.y * lineDir.y - ellipsePos.y * lineDir.y)/(circleRad * circleRad)));
+		var C = (((linePos.x * linePos.x - 2 * ellipsePos.x * linePos.x + ellipsePos.x * ellipsePos.x)/(circleRad * circleRad)) + (linePos.y * linePos.y - 2 * ellipsePos.y * linePos.y + ellipsePos.y * ellipsePos.y)/(circleRad * circleRad) - 1);
+		var delta = Math.sqrt((B * B) - (4 * A * C));
+		return Math.min((-B + delta) / (2 * A), (-B - delta) / (2 * A))
+	}
+	}
+	{//variables
+	var playerPos = {x: 750, y: 400};
+	var playerDir = {x: 0, y: 0};
+	var playerSpeed = 50;
+	var playerShield = 100;
+	var playerHealth = 100;
+	var outerCircleRad = 256;
+	var outerCirclePos = {x: 400, y: 300};
+	var innerCircleRad = outerCircleRad / 2;
+	var innerCirclePos = {x: Math.round(outerCirclePos.x + (outerCircleRad - innerCircleRad) * random(0.7)), y: Math.round(outerCirclePos.y + (outerCircleRad - innerCircleRad) * random(0.7))};
+    
+	var linePos = innerCirclePos;
+	var lineDir = sub(outerCirclePos, innerCirclePos);
+    var lineLength = length(lineDir);
+	normalize(lineDir);
+	var intersectionPos = playerPos;
+	var intersectionDir = sub(innerCirclePos, playerPos);
+	normalize(intersectionDir);
+	var t = intersects(intersectionPos, intersectionDir, innerCirclePos, innerCircleRad);
+	var fullHealthShieldWidth = document.getElementById("innerHealth").getAttribute("width");
+	
+	var fps = 60;
+	var frequency = 1000 / fps;
+	//var times = [180, 180, 150, 150, 120, 120, 90, 90, 75, 75, 60, 60, 45, 45, 30, 30];
+	var times = [2, 16, 2, 14, 2, 12, 2, 10, 2, 8, 2, 6, 2, 4, 2, 2];
+	var timesCounter = 0;
+	var minutes = Math.floor(times[timesCounter] / 60);
+	var seconds = times[timesCounter] - minutes * 60;
+	var ratioRad = (outerCircleRad - innerCircleRad);
+	var ratioLine = lineLength;
+	
+	var canvasWidth = document.getElementById("svg").getAttribute("width");
+	var canvasHeight = document.getElementById("svg").getAttribute("height");
+	
+	var mousePos = {x: 0, y: 0};
+	var playerRight = {x: 1, y: 0};
+	var upPressed = 0;
+	var downPressed = 0;
+	var leftPressed = 0;
+	var rightPressed = 0;
+	var vDir = 0;
+	var hDir = 0;
+	var speedVec = 1;
+	var move = 0;
+	var shot = false;
+	var canShoot = true;
+	var weaponRate = 10;
+	var weaponTimer = 0;
+	}
+	{//initialization
+	document.getElementById("player").setAttribute("cx", playerPos.x);
+    document.getElementById("player").setAttribute("cy", playerPos.y);
+    document.getElementById("player").setAttribute("r", 1);
+    
+    document.getElementById("innerCenter").setAttribute("cx", innerCirclePos.x);
+    document.getElementById("innerCenter").setAttribute("cy", innerCirclePos.y);
+    document.getElementById("innerCenter").setAttribute("r", 1);
+    
+    document.getElementById("outerCenter").setAttribute("cx", outerCirclePos.x);
+    document.getElementById("outerCenter").setAttribute("cy", outerCirclePos.y);
+    document.getElementById("outerCenter").setAttribute("r", 1);
+	
+	document.getElementById("innerCircle").setAttribute("cx", innerCirclePos.x);
+    document.getElementById("innerCircle").setAttribute("cy", innerCirclePos.y);
+    document.getElementById("innerCircle").setAttribute("r", innerCircleRad);
+    
+    document.getElementById("outerCircle").setAttribute("cx", outerCirclePos.x);
+    document.getElementById("outerCircle").setAttribute("cy", outerCirclePos.y);
+    document.getElementById("outerCircle").setAttribute("r", outerCircleRad);
+	
+	document.getElementById("line").setAttribute("x1", linePos.x);
+	document.getElementById("line").setAttribute("y1", linePos.y);
+	document.getElementById("line").setAttribute("x2", linePos.x + lineDir.x * lineLength);
+	document.getElementById("line").setAttribute("y2", linePos.y + lineDir.y * lineLength);
+	
+	var intersectionDir = sub(innerCirclePos, playerPos);
+	normalize(intersectionDir);
+	var t = intersects(playerPos, intersectionDir, innerCirclePos, innerCircleRad);
+	document.getElementById("intersection").setAttribute("x1", playerPos.x);
+	document.getElementById("intersection").setAttribute("y1", playerPos.y);
+	document.getElementById("intersection").setAttribute("x2", playerPos.x + t * intersectionDir.x);
+	document.getElementById("intersection").setAttribute("y2", playerPos.y + t * intersectionDir.y);
+	if (length(sub(playerPos, innerCirclePos)) >= innerCircleRad) {
+		document.getElementById("intersection").setAttribute("visibility", "visible");
+	} else {
+		document.getElementById("intersection").setAttribute("visibility", "hidden");
+	}
+	
+	document.getElementById("bullet").setAttribute("visibility", "hidden");
+	
+	document.getElementById("vision").setAttribute("x1", playerPos.x);
+	document.getElementById("vision").setAttribute("y1", playerPos.y);
+	document.getElementById("vision").setAttribute("x2", playerPos.x + playerDir.x * 10);
+	document.getElementById("vision").setAttribute("y2", playerPos.y + playerDir.y * 10);
+	
+	document.getElementById('sh').textContent = "Shield " + playerShield;
+	document.getElementById('hp').textContent = "Health " + playerHealth;
+	document.getElementById("innerShield").setAttribute("width", playerShield * (fullHealthShieldWidth/100));
+	document.getElementById("innerHealth").setAttribute("width", playerHealth * (fullHealthShieldWidth/100));
+	document.getElementById('timerLabel').textContent = "Storm coming";
+	document.getElementById('timer').textContent = minutes + ":" + seconds.toString().padStart(2);
+	}
+	{//input
+	document.onmousemove = function(e){
+		e = e || window.event;
+		mousePos = {x: e.clientX-4, y: e.clientY-6}
+		playerDir = sub(mousePos, playerPos);
+		normalize(playerDir);
+		document.getElementById("vision").setAttribute("x1", playerPos.x);
+		document.getElementById("vision").setAttribute("y1", playerPos.y);
+		document.getElementById("vision").setAttribute("x2", playerPos.x + playerDir.x * 10);
+		document.getElementById("vision").setAttribute("y2", playerPos.y + playerDir.y * 10);
+	}; 
+	document.onkeydown = function(e) {
+		e = e || window.event;
+		if (e.keyCode == '87') {
+			upPressed = 1;
+			move = 1;
+		} else if (e.keyCode == '83') {
+			downPressed = 1;
+			move = 1;
+		} else if (e.keyCode == '65') {
+			leftPressed = 1;
+			move = 1;
+		} else if (e.keyCode == '68') {
+			rightPressed = 1;
+			move = 1;
+		}
+		vDir = upPressed - downPressed;
+		hDir = rightPressed - leftPressed;
+		speedVec = length({x: hDir, y: vDir});
+		if (speedVec == 0) speedVec = 1;
+		shot = e.keyCode == '32';
+	}
+	document.onkeyup = function(e) {
+		e = e || window.event;
+		if (e.keyCode == '87') {
+			upPressed = 0;
+		} else if (e.keyCode == '83') {
+			downPressed = 0;
+		} else if (e.keyCode == '65') {
+			leftPressed = 0;
+		} else if (e.keyCode == '68') {
+			rightPressed = 0;
+		}
+		vDir = upPressed - downPressed;
+		hDir = rightPressed - leftPressed;
+		speedVec = length({x: hDir, y: vDir});
+		if (speedVec == 0) {
+			speedVec = 1;
+			move = 0;
+		}
+	}
+	}
+	function reduceCircle() {
+		var circleReduction = setInterval(function() {
+			if (lineLength > 1e-10) {
+				lineLength -= ratioLine * frequency / 1000;
+				outerCircleRad -= ratioRad * frequency / 1000;
+				outerCirclePos.x = linePos.x + lineDir.x * lineLength;
+				outerCirclePos.y = linePos.y + lineDir.y * lineLength;
+				document.getElementById("outerCenter").setAttribute("cx", outerCirclePos.x);
+				document.getElementById("outerCenter").setAttribute("cy", outerCirclePos.y);
+				document.getElementById("outerCircle").setAttribute("cx", outerCirclePos.x);
+				document.getElementById("outerCircle").setAttribute("cy", outerCirclePos.y);
+				document.getElementById("outerCircle").setAttribute("r", outerCircleRad);
+				document.getElementById("line").setAttribute("x2", outerCirclePos.x);
+				document.getElementById("line").setAttribute("y2", outerCirclePos.y);
+			} else {
+				outerCircleRad = innerCircleRad;
+				innerCircleRad /= 2;
+				outerCirclePos = innerCirclePos;
+				innerCirclePos = {x: Math.round(outerCirclePos.x + (outerCircleRad - innerCircleRad) * random(0.7)), y: Math.round(outerCirclePos.y + (outerCircleRad - innerCircleRad) * random(0.7))};
+				linePos = innerCirclePos;
+				lineDir = sub(outerCirclePos, innerCirclePos);
+				lineLength = length(lineDir);
+				normalize(lineDir);
+				document.getElementById("innerCenter").setAttribute("cx", innerCirclePos.x);
+				document.getElementById("innerCenter").setAttribute("cy", innerCirclePos.y);
+				document.getElementById("innerCircle").setAttribute("cx", innerCirclePos.x);
+				document.getElementById("innerCircle").setAttribute("cy", innerCirclePos.y);
+				document.getElementById("innerCircle").setAttribute("r", innerCircleRad);
+				var intersectionDir = sub(innerCirclePos, playerPos);
+				normalize(intersectionDir);
+				var t = intersects(playerPos, intersectionDir, innerCirclePos, innerCircleRad);
+				document.getElementById("intersection").setAttribute("x1", playerPos.x);
+				document.getElementById("intersection").setAttribute("y1", playerPos.y);
+				document.getElementById("intersection").setAttribute("x2", playerPos.x + t * intersectionDir.x);
+				document.getElementById("intersection").setAttribute("y2", playerPos.y + t * intersectionDir.y);
+				if (length(sub(playerPos, innerCirclePos)) >= innerCircleRad) {
+					document.getElementById("intersection").setAttribute("visibility", "visible");
+				} else {
+					document.getElementById("intersection").setAttribute("visibility", "hidden");
+				}
+				clearInterval(circleReduction);
+			}
+		}, frequency);
+	}
+	var counter = setInterval(function() {
+		if (seconds > 0 || minutes > 0) {
+			if (seconds == 0) {
+				seconds = 59;
+				minutes--;
+			} else {
+				seconds--;
+			}
+			document.getElementById('timer').textContent = minutes + ":" + seconds.toString().padStart(2);
+		} else {
+			timesCounter++;
+			if (timesCounter == times.length) {
+				document.getElementById('timerLabel').setAttribute("visibility", "hidden");
+				document.getElementById('timer').setAttribute("visibility", "hidden");
+				clearInterval(counter);
+			} else {
+				time = times[timesCounter] - 1;
+				minutes = Math.floor(time / 60);
+				seconds = time - minutes * 60;
+				if (timesCounter % 2) {
+					ratioLine = lineLength / time;
+					ratioRad = (outerCircleRad - innerCircleRad) / time;
+					document.getElementById("innerCenter").setAttribute("cx", innerCirclePos.x);
+					document.getElementById("innerCenter").setAttribute("cy", innerCirclePos.y);
+					document.getElementById("innerCircle").setAttribute("cx", innerCirclePos.x);
+					document.getElementById("innerCircle").setAttribute("cy", innerCirclePos.y);
+					document.getElementById("innerCircle").setAttribute("r", innerCircleRad);
+					document.getElementById("line").setAttribute("x1", linePos.x);
+					document.getElementById("line").setAttribute("y1", linePos.y);
+					document.getElementById("line").setAttribute("x2", linePos.x + lineDir.x * lineLength);
+					document.getElementById("line").setAttribute("y2", linePos.y + lineDir.y * lineLength);
+					document.getElementById('timerLabel').textContent = "Storm shrinking";
+					reduceCircle();
+				} else {
+					document.getElementById('timerLabel').textContent = "Storm coming";
+				}
+				document.getElementById('timer').textContent = minutes + ":" + seconds.toString().padStart(2);
+			}
+		}
+	}, 1000);
+	var playerDamage = setInterval(function() {
+		if (playerHealth > 0) {
+			if (distance(playerPos, outerCirclePos) >= outerCircleRad) {
+				playerHealth -= 2;
+				document.getElementById('hp').textContent = "Health " + playerHealth;
+				document.getElementById("innerHealth").setAttribute("width", playerHealth * (fullHealthShieldWidth/100));
+			}
+		} else {
+			document.getElementById("player").setAttribute("visibility", "hidden");
+			document.getElementById("innerCenter").setAttribute("visibility", "hidden");
+			document.getElementById("outerCenter").setAttribute("visibility", "hidden");
+			document.getElementById("innerCircle").setAttribute("visibility", "hidden");
+			document.getElementById("outerCircle").setAttribute("visibility", "hidden");
+			document.getElementById("line").setAttribute("visibility", "hidden");
+			document.getElementById("intersection").setAttribute("visibility", "hidden");
+			document.getElementById("vision").setAttribute("visibility", "hidden");
+			document.getElementById("sh").setAttribute("visibility", "hidden");
+			document.getElementById("outerShield").setAttribute("visibility", "hidden");
+			document.getElementById("innerShield").setAttribute("visibility", "hidden");
+			document.getElementById("hp").setAttribute("visibility", "hidden");
+			document.getElementById("outerHealth").setAttribute("visibility", "hidden");
+			document.getElementById("innerHealth").setAttribute("visibility", "hidden");
+			document.getElementById("timerLabel").setAttribute("visibility", "hidden");
+			document.getElementById("timer").setAttribute("visibility", "hidden");
+			clearInterval(counter);
+			clearInterval(playerMovement);
+			clearInterval(playerDamage);
+		}
+	}, 1000);
+	var playerMovement = setInterval(function() {
+		if (move) {
+			playerPos.x += (frequency / 1000) * playerSpeed * hDir / speedVec;
+			playerPos.y -= (frequency / 1000) * playerSpeed * vDir / speedVec;
+			playerPos.x = clamp(0, canvasWidth, playerPos.x);
+			playerPos.y = clamp(0, canvasHeight, playerPos.y);
+			document.getElementById("player").setAttribute("cx", playerPos.x);
+			document.getElementById("player").setAttribute("cy", playerPos.y);
+			document.getElementById("vision").setAttribute("x1", playerPos.x);
+			document.getElementById("vision").setAttribute("y1", playerPos.y);
+			document.getElementById("vision").setAttribute("x2", playerPos.x + playerDir.x * 10);
+			document.getElementById("vision").setAttribute("y2", playerPos.y + playerDir.y * 10);
+			
+			var intersectionDir = sub(innerCirclePos, playerPos);
+			normalize(intersectionDir);
+			var t = intersects(playerPos, intersectionDir, innerCirclePos, innerCircleRad);
+			document.getElementById("intersection").setAttribute("x1", playerPos.x);
+			document.getElementById("intersection").setAttribute("y1", playerPos.y);
+			document.getElementById("intersection").setAttribute("x2", playerPos.x + t * intersectionDir.x);
+			document.getElementById("intersection").setAttribute("y2", playerPos.y + t * intersectionDir.y);
+			if (length(sub(playerPos, innerCirclePos)) >= innerCircleRad) {
+				document.getElementById("intersection").setAttribute("visibility", "visible");
+			} else {
+				document.getElementById("intersection").setAttribute("visibility", "hidden");
+			}
+		}
+		if (distance(playerPos, outerCirclePos) < outerCircleRad) {
+			document.getElementById("player").setAttribute("stroke", "green");
+			document.getElementById("vision").setAttribute("stroke", "green");
+		} else {
+			document.getElementById("player").setAttribute("stroke", "red");
+			document.getElementById("vision").setAttribute("stroke", "red");
+		}
+	}, frequency);
+	function fadeBullet() {
+		var alpha = 1.0;
+		var ptr = document.getElementById("bullet");
+		ptr.setAttribute("stroke-opacity", alpha);
+		var bulletFading = setInterval(function() {
+			if (alpha > 0) {
+				alpha -= frequency / 1000;
+				ptr.setAttribute("stroke-opacity", alpha);
+			} else {
+				clearInterval(bulletFading);
+			}
+		}, frequency);
+	}
+	var playerShot = setInterval(function() {
+		if (weaponTimer >= weaponRate) {
+			weaponTimer = 0;
+			canShoot = true;
+			document.getElementById("bullet").setAttribute("visibility", "hidden");
+			console.log(weaponTimer);
+		}
+		if (canShoot) {
+			if (shot) {
+				shot = false;
+				canShoot = false;
+				document.getElementById("bullet").setAttribute("x1", playerPos.x);
+				document.getElementById("bullet").setAttribute("y1", playerPos.y);
+				document.getElementById("bullet").setAttribute("x2", playerPos.x + playerDir.x * 100);
+				document.getElementById("bullet").setAttribute("y2", playerPos.y + playerDir.y * 100);
+				document.getElementById("bullet").setAttribute("visibility", "visible");
+				fadeBullet();
+			}
+		} else {
+			weaponTimer += 30/1000;
+		}
+	}, 30);
+</script>
+</body>
+</html>
